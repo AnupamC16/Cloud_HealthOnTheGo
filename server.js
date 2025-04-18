@@ -47,7 +47,7 @@ app.post('/searchrecipe', async (req, res) => {
             readyInMinutes: recipe.readyInMinutes,
             servings: recipe.servings,
             ingredients: recipe.extendedIngredients.map(i => i.original),
-            instructions: recipe.instructions || "Instructions not provided"
+            instructions: recipe.instrxuctions || "Instructions not provided"
         });
 
     } catch (err) {
@@ -110,32 +110,53 @@ app.post('/explorerecipes', async (req, res) => {
 });
 
 app.post('/searchrecipebyingredients', async (req, res) => {
-    try {
-        const { ingredients, cuisine } = req.body;
+    const { ingredients, cuisine } = req.body;
 
-        if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
-            return res.status(400).json({ error: "Ingredients must be a non-empty array." });
+    if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
+        return res.status(400).json({ error: "Ingredients must be a non-empty array." });
+    }
+
+    try {
+        // Step 1: Search with ingredients + optional cuisine
+        const searchResponse = await axios.get("https://api.spoonacular.com/recipes/complexSearch", {
+            params: {
+                includeIngredients: ingredients.join(','),
+                cuisine: cuisine || '',
+                number: 1,
+                apiKey: SPOONACULAR_API_KEY
+            }
+        });
+
+        const results = searchResponse.data.results;
+        if (!results.length) {
+            return res.status(404).json({ error: "No recipes found matching ingredients." });
         }
 
-        const formattedIngredients = ingredients.join(',');
-        const queryParams = {
-            includeIngredients: formattedIngredients,
-            cuisine: cuisine || '',
-            number: 20,
-            apiKey: TEST_API_KEY
-        };
+        // Step 2: Fetch detailed recipe info
+        const recipeId = results[0].id;
+        const infoResponse = await axios.get(
+            `https://api.spoonacular.com/recipes/${recipeId}/information`,
+            { params: { apiKey: SPOONACULAR_API_KEY } }
+        );
 
-        const response = await axios.get("https://api.spoonacular.com/recipes/complexSearch", { params: queryParams });
+        const recipe = infoResponse.data;
 
-        return res.status(200).json({
-            recipes: response.data.results,
-            totalResults: response.data.totalResults
+        // Step 3: Return standardized format
+        res.status(200).json({
+            title: recipe.title,
+            image: recipe.image,
+            readyInMinutes: recipe.readyInMinutes,
+            servings: recipe.servings,
+            ingredients: recipe.extendedIngredients.map(i => i.original),
+            instructions: recipe.instructions || "Instructions not provided"
         });
+
     } catch (err) {
         console.error("Failed to fetch recipes:", err.message || err);
-        return res.status(500).json({ error: "Failed to fetch recipes from API." });
+        res.status(500).json({ error: "Failed to fetch recipes from API." });
     }
 });
+
 
 // Start server
 const PORT = process.env.PORT || 8080;
