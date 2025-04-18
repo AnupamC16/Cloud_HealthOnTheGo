@@ -1,0 +1,13 @@
+{
+  "name": "recipe-api",
+  "version": "1.0.0",
+  "description": "Recipe search API using Spoonacular",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.3.0",
+    "express": "^4.18.2"
+  }
+}
