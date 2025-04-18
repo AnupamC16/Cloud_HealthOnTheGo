@@ -69,7 +69,7 @@ app.post('/explorerecipes', async (req, res) => {
             {
                 params: {
                     cuisine: cuisine,
-                    number: 10,
+                    number: 5,
                     apiKey: SPOONACULAR_API_KEY
                 }
             }
@@ -81,27 +81,24 @@ app.post('/explorerecipes', async (req, res) => {
             return res.status(404).json({ error: 'No recipes found for this cuisine' });
         }
 
-        const recipeId = recipes[0].id;
+        // Fetch detailed info for each recipe using Promise.all
+        const detailedRecipes = await Promise.all(recipes.map(async (r) => {
+            const info = await axios.get(
+                `https://api.spoonacular.com/recipes/${r.id}/information`,
+                { params: { apiKey: SPOONACULAR_API_KEY } }
+            );
 
-        const infoResponse = await axios.get(
-            `https://api.spoonacular.com/recipes/${recipeId}/information`,
-            {
-                params: {
-                    apiKey: SPOONACULAR_API_KEY
-                }
-            }
-        );
+            return {
+                title: info.data.title,
+                image: info.data.image,
+                readyInMinutes: info.data.readyInMinutes,
+                servings: info.data.servings,
+                ingredients: info.data.extendedIngredients.map(i => i.original),
+                instructions: info.data.instructions || "Instructions not provided"
+            };
+        }));
 
-        const recipe = infoResponse.data;
-
-        res.json({
-            title: recipe.title,
-            image: recipe.image,
-            readyInMinutes: recipe.readyInMinutes,
-            servings: recipe.servings,
-            ingredients: recipe.extendedIngredients.map(i => i.original),
-            instructions: recipe.instructions || "Instructions not provided"
-        });
+        res.json(detailedRecipes);
 
     } catch (error) {
         console.error("Error:", error.message);
@@ -117,12 +114,11 @@ app.post('/searchrecipebyingredients', async (req, res) => {
     }
 
     try {
-        // Step 1: Search with ingredients + optional cuisine
         const searchResponse = await axios.get("https://api.spoonacular.com/recipes/complexSearch", {
             params: {
                 includeIngredients: ingredients.join(','),
                 cuisine: cuisine || '',
-                number: 1,
+                number: 5,
                 apiKey: SPOONACULAR_API_KEY
             }
         });
@@ -132,24 +128,23 @@ app.post('/searchrecipebyingredients', async (req, res) => {
             return res.status(404).json({ error: "No recipes found matching ingredients." });
         }
 
-        // Step 2: Fetch detailed recipe info
-        const recipeId = results[0].id;
-        const infoResponse = await axios.get(
-            `https://api.spoonacular.com/recipes/${recipeId}/information`,
-            { params: { apiKey: SPOONACULAR_API_KEY } }
-        );
+        const detailedRecipes = await Promise.all(results.map(async (r) => {
+            const info = await axios.get(
+                `https://api.spoonacular.com/recipes/${r.id}/information`,
+                { params: { apiKey: SPOONACULAR_API_KEY } }
+            );
 
-        const recipe = infoResponse.data;
+            return {
+                title: info.data.title,
+                image: info.data.image,
+                readyInMinutes: info.data.readyInMinutes,
+                servings: info.data.servings,
+                ingredients: info.data.extendedIngredients.map(i => i.original),
+                instructions: info.data.instructions || "Instructions not provided"
+            };
+        }));
 
-        // Step 3: Return standardized format
-        res.status(200).json({
-            title: recipe.title,
-            image: recipe.image,
-            readyInMinutes: recipe.readyInMinutes,
-            servings: recipe.servings,
-            ingredients: recipe.extendedIngredients.map(i => i.original),
-            instructions: recipe.instructions || "Instructions not provided"
-        });
+        res.status(200).json(detailedRecipes);
 
     } catch (err) {
         console.error("Failed to fetch recipes:", err.message || err);
